@@ -12,6 +12,7 @@ class Labelizer:
     def __init__(self):
         self.ab_to_label = {}
         self.label_to_ab = {}
+        self.label_counts = {}
         self.last_label = 0
 
     def ab_pixel_to_label(self, ab_pixel, add=True):
@@ -20,9 +21,13 @@ class Labelizer:
             if add:
                 self.ab_to_label[ab_tuple] = self.last_label
                 self.label_to_ab[self.last_label] = ab_pixel
+                self.label_counts[self.last_label] = 1
                 self.last_label += 1
             else:
                 return -1
+        
+        if add:
+            self.label_counts[self.ab_to_label[ab_tuple]] += 1
         return self.ab_to_label[ab_tuple]
 
     def label_to_ab_pixel(self, label):
@@ -37,7 +42,6 @@ class Labelizer:
     def label_image_to_ab(self, image):
         return np.apply_along_axis(lambda x : self.label_to_ab_pixel(x), axis=2, arr=image)
     
-
     def label_dataset(self, quantized_dataset):
 
         @tf.py_function(Tout=tf.dtypes.int64)
