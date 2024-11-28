@@ -14,14 +14,16 @@ class Labelizer:
         self.label_to_ab = {}
         self.label_counts = {}
         self.last_label = 0
+        self.dumb_count = 0
 
     def ab_pixel_to_label(self, ab_pixel, add=True):
+        self.dumb_count += 1
         ab_tuple = (ab_pixel[0], ab_pixel[1])
         if ab_tuple not in self.ab_to_label.keys():
             if add:
                 self.ab_to_label[ab_tuple] = self.last_label
                 self.label_to_ab[self.last_label] = ab_pixel
-                self.label_counts[self.last_label] = 1
+                self.label_counts[self.last_label] = 0
                 self.last_label += 1
             else:
                 return -1
@@ -34,10 +36,11 @@ class Labelizer:
         return self.label_to_ab[label]
 
     def ab_image_to_label(self, image):
-        return np.apply_along_axis(lambda x : self.ab_pixel_to_label(x), axis=2, arr=image)
-
+        return np.apply_along_axis(lambda x : self.ab_pixel_to_label(x), axis=-1, arr=image)
+    
     def ab_image_to_label_tensor(self, image):
         return tf.convert_to_tensor(self.ab_image_to_label(image.numpy()))
+
 
     def label_image_to_ab(self, image):
         return np.apply_along_axis(lambda x : self.label_to_ab_pixel(x), axis=2, arr=image)
@@ -47,10 +50,11 @@ class Labelizer:
         @tf.py_function(Tout=tf.dtypes.int64)
         def wrap_ab_image_to_label_tensor(x):
             return self.ab_image_to_label_tensor(x)
-                
-        return quantized_dataset.unbatch().map(
-            lambda l, quantized_ab: 
-                (l, wrap_ab_image_to_label_tensor(quantized_ab))).batch(batch_size)
+        
+
+        return quantized_dataset.map(
+            lambda l_batch, quantized_ab_batch: 
+                (l_batch, wrap_ab_image_to_label_tensor(quantized_ab_batch)))
 
 
 def load_base_datasets():
@@ -88,10 +92,10 @@ def split_l_and_ab_dataset(lab_dataset):
     
     return lab_dataset.map(split_l_and_ab_batch)
 
-def quantize_dataset(split_dataset):
+def quantize_dataset(split_dataset, bin_size=10):
 
     def quantize_ab_batch(ab_batch):
-        return (ab_batch//10)*10 + 5
+        return (ab_batch//bin_size)*bin_size + bin_size//2
     
     return split_dataset.map(lambda l_batch, ab_batch: (l_batch, quantize_ab_batch(ab_batch)))
 
